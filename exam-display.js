@@ -425,7 +425,15 @@
   document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('exam-display-root');
     if (container) {
-      const municipality = container.getAttribute('data-municipality') || '川越市';
+      // URLパラメータから自治体名を取得
+      const urlParams = new URLSearchParams(window.location.search);
+      let municipality = urlParams.get('municipality');
+      
+      // URLパラメータがない場合はdata-municipalityを使用
+      if (!municipality) {
+        municipality = container.getAttribute('data-municipality') || '川越市';
+      }
+      
       ReactDOM.render(e(ExamDisplay, { municipality }), container);
     }
   });
