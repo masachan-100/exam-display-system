@@ -80,13 +80,16 @@
             const ratio = latestResult ? `${latestResult.ratio}倍` : '';
             const recruitNum = exam.recruit_number || '';
             
+            // 詳細情報を整理
+            const details = [];
+            if (recruitNum) details.push(recruitNum);
+            if (ratio) details.push(ratio);
+            const detailsText = details.join(' • ');
+            
             return `
                 <div class="position-item">
                     <span class="position-name">${exam.position}</span>
-                    <span class="position-details">
-                        ${recruitNum ? `${recruitNum}` : ''}
-                        ${ratio ? ` • ${ratio}` : ''}
-                    </span>
+                    ${detailsText ? `<span class="position-details">${detailsText}</span>` : ''}
                 </div>
             `;
         }).join('');
