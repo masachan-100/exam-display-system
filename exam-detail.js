@@ -48,12 +48,18 @@
     // URLパラメータを解析
     function getUrlParams() {
         const path = window.location.pathname;
-        const matches = path.match(/\/([^-]+)-(.+?)\/$/);
+        // 末尾の/を除去してから解析
+        const cleanPath = path.replace(/\/$/, '');
+        const pathParts = cleanPath.split('/');
         
-        if (matches) {
+        // 最後の部分を取得（例: "札幌市-大学卒業程度（早期枠）"）
+        const lastPart = pathParts[pathParts.length - 1];
+        
+        if (lastPart && lastPart.includes('-')) {
+            const dashIndex = lastPart.indexOf('-');
             return {
-                municipality: matches[1],
-                examType: matches[2]
+                municipality: lastPart.substring(0, dashIndex),                    // "札幌市"
+                examType: decodeURIComponent(lastPart.substring(dashIndex + 1))    // "大学卒業程度（早期枠）"
             };
         }
         
