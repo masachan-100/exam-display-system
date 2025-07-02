@@ -10,16 +10,76 @@
     document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById('exam-detail-root');
         if (container) {
-            loadExamDetail(container);
+            // data属性から取得を優先
+            const municipality = container.getAttribute('data-municipality');
+            const examType = container.getAttribute('data-exam-type');
+            
+            if (municipality && examType) {
+                console.log('data属性から取得:', { municipality, examType });
+                loadExamDetailDirect(container, municipality, examType);
+            } else {
+                loadExamDetail(container);
+            }
         }
     });
+
+    // 直接指定されたパラメータで詳細データを読み込み
+    async function loadExamDetailDirect(container, municipality, examType) {
+        try {
+            showLoading(container);
+            
+            const response = await fetch(`${API_URL}?municipality=${encodeURIComponent(municipality)}`);
+            if (!response.ok) {
+                throw new Error('データの取得に失敗しました');
+            }
+            
+            const allData = await response.json();
+            const examData = filterByExamType(allData, examType);
+            
+            if (examData.length === 0) {
+                showError(container, '該当する試験情報が見つかりません');
+                return;
+            }
+
+            displayExamDetail(examData, container, { municipality, examType });
+            
+        } catch (error) {
+            showError(container, error.message);
+        }
+    }
 
     // URLから自治体名と試験種を取得して詳細データを読み込み
     async function loadExamDetail(container) {
         try {
             const urlParams = getUrlParams();
+            
+            // デバッグ用ログ
+            console.log('URL:', window.location.pathname);
+            console.log('解析結果:', urlParams);
+            
             if (!urlParams.municipality || !urlParams.examType) {
-                showError(container, 'URLパラメータが不正です');
+                // URLパラメータが取得できない場合の代替処理
+                console.log('URLパラメータが不正です。代替処理を実行します。');
+                
+                // 全データを取得して表示（デバッグ用）
+                const allMunicipalities = ['川越市', '札幌市']; // 既知の自治体
+                for (const municipality of allMunicipalities) {
+                    try {
+                        const response = await fetch(`${API_URL}?municipality=${encodeURIComponent(municipality)}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data && data.length > 0) {
+                                console.log(`${municipality}のデータ:`, data);
+                                displayExamDetail(data, container, { municipality, examType: data[0].exam_type });
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`${municipality}のデータ取得に失敗:`, e);
+                    }
+                }
+                
+                showError(container, 'URLパラメータが不正です。正しいURLでアクセスしてください。');
                 return;
             }
 
@@ -48,27 +108,49 @@
     // URLパラメータを解析
     function getUrlParams() {
         const path = window.location.pathname;
-        // 末尾の/を除去してから解析
+        console.log('現在のパス:', path);
+        
+        // パターン1: /koumuin_shiken/札幌市-大学卒業程度/ 形式
         const cleanPath = path.replace(/\/$/, '');
         const pathParts = cleanPath.split('/');
+        console.log('パス分割:', pathParts);
         
-        // 最後の部分を取得（例: "札幌市-大学卒業程度（早期枠）"）
+        // 最後の部分を取得
         const lastPart = pathParts[pathParts.length - 1];
+        console.log('最後の部分:', lastPart);
         
         if (lastPart && lastPart.includes('-')) {
             const dashIndex = lastPart.indexOf('-');
-            return {
-                municipality: lastPart.substring(0, dashIndex),                    // "札幌市"
-                examType: decodeURIComponent(lastPart.substring(dashIndex + 1))    // "大学卒業程度（早期枠）"
+            const result = {
+                municipality: lastPart.substring(0, dashIndex),
+                examType: decodeURIComponent(lastPart.substring(dashIndex + 1))
             };
+            console.log('パターン1で解析:', result);
+            return result;
         }
         
-        // フォールバック: URLパラメータから取得
+        // パターン2: WordPress固定ページのスラッグから推測
+        if (pathParts.length >= 2) {
+            const slug = pathParts[pathParts.length - 1];
+            if (slug.includes('川越市') || slug.includes('kawagoe')) {
+                console.log('川越市として処理');
+                return { municipality: '川越市', examType: '行政職員採用試験' };
+            }
+            if (slug.includes('札幌市') || slug.includes('sapporo')) {
+                console.log('札幌市として処理');
+                return { municipality: '札幌市', examType: '職員採用試験（大学の部・一般方式）' };
+            }
+        }
+        
+        // パターン3: URLパラメータから取得
         const urlParams = new URLSearchParams(window.location.search);
-        return {
+        const result3 = {
             municipality: urlParams.get('municipality'),
             examType: urlParams.get('examType')
         };
+        console.log('パターン3で解析:', result3);
+        
+        return result3;
     }
 
     // 試験種でフィルタリング
