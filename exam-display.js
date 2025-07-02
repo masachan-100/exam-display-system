@@ -76,20 +76,12 @@
         
         // 職種一覧を作成
         const positionsList = exams.map(exam => {
-            const latestResult = getLatestResult(exam.examResults);
-            const ratio = latestResult ? `${latestResult.ratio}倍` : '';
             const recruitNum = exam.recruit_number || '';
-            
-            // 詳細情報を整理
-            const details = [];
-            if (recruitNum) details.push(recruitNum);
-            if (ratio) details.push(ratio);
-            const detailsText = details.join(' • ');
             
             return `
                 <div class="position-item">
                     <span class="position-name">${exam.position}</span>
-                    ${detailsText ? `<span class="position-details">${detailsText}</span>` : ''}
+                    ${recruitNum ? `<span class="position-details">${recruitNum}</span>` : ''}
                 </div>
             `;
         }).join('');
