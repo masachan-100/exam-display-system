@@ -1,4 +1,4 @@
-// 公務員試験情報表示システム
+// 公務員試験情報表示システム（フィルター機能付き）
 (function() {
   'use strict';
 
@@ -84,8 +84,8 @@
     d: 'M15 11a3 3 0 11-6 0 3 3 0 016 0z'
   }));
 
-  // メインコンポーネント
-  const ExamDisplay = ({ municipality = '川越市' }) => {
+  // メインコンポーネント（フィルター機能付き）
+  const ExamDisplay = ({ municipality = '川越市', examType = null }) => {
     const [examData, setExamData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState('list');
@@ -116,7 +116,12 @@
       const fetchExamData = async () => {
         setLoading(true);
         try {
-          const url = `https://haikakin.com/api/exam-api.php?municipality=${encodeURIComponent(municipality)}`;
+          // APIのURLを構築（フィルター付き）
+          let url = `https://haikakin.com/api/exam-api.php?municipality=${encodeURIComponent(municipality)}`;
+          if (examType) {
+            url += `&exam_type=${encodeURIComponent(examType)}`;
+          }
+          
           const response = await fetch(url);
           
           if (!response.ok) {
@@ -124,8 +129,16 @@
           }
           const data = await response.json();
           
+          // クライアントサイドでのフィルタリング（APIがフィルターをサポートしていない場合）
+          let filteredData = data;
+          if (examType) {
+            filteredData = data.filter(exam => 
+              exam.exam_type && exam.exam_type.includes(examType)
+            );
+          }
+          
           // 募集状況による優先ソート
-          const sortedData = data.sort((a, b) => {
+          const sortedData = filteredData.sort((a, b) => {
             const statusA = getApplicationStatus(a.application_start, a.application_end);
             const statusB = getApplicationStatus(b.application_start, b.application_end);
             
@@ -152,7 +165,7 @@
       if (municipality) {
         fetchExamData();
       }
-    }, [municipality]);
+    }, [municipality, examType]);
 
     // 統計データ計算
     const getStatistics = () => {
@@ -178,6 +191,15 @@
 
     const stats = getStatistics();
 
+    // タイトル表示の調整
+    const getDisplayTitle = () => {
+      let title = `${municipality} 公務員試験情報`;
+      if (examType) {
+        title += ` (${examType})`;
+      }
+      return title;
+    };
+
     return e('div', {
       className: 'max-w-4xl mx-auto p-6 bg-white'
     }, [
@@ -188,7 +210,16 @@
           e('h1', { 
             className: 'text-2xl font-bold text-gray-800',
             key: 'h1'
-          }, `${municipality} 公務員試験情報`)
+          }, getDisplayTitle())
+        ]),
+        
+        // フィルター情報表示
+        examType && e('div', {
+          className: 'mb-4 p-3 bg-blue-50 rounded-lg',
+          key: 'filter-info'
+        }, [
+          e('div', { className: 'text-sm text-blue-800', key: 'filter-text' }, 
+            `絞り込み条件: ${examType}`)
         ]),
         
         // 統計サマリー
@@ -296,7 +327,7 @@
             ])
           ]);
         } else {
-          // 詳細表示
+          // 詳細表示（同じ内容なので省略）
           return e('div', {
             key: exam.id,
             className: 'border border-gray-200 rounded-lg p-6'
@@ -417,24 +448,30 @@
       })) : e('div', {
         className: 'text-center py-8 text-gray-500',
         key: 'no-data'
-      }, `${municipality}の試験情報は現在登録されていません。`)
+      }, examType ? 
+        `${municipality}の「${examType}」試験情報は現在登録されていません。` :
+        `${municipality}の試験情報は現在登録されていません。`)
     ]);
   };
 
-  // 初期化
+  // 初期化（フィルター対応）
   document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('exam-display-root');
     if (container) {
-      // URLパラメータから自治体名を取得
+      // URLパラメータから取得
       const urlParams = new URLSearchParams(window.location.search);
       let municipality = urlParams.get('municipality');
+      let examType = urlParams.get('exam_type');
       
-      // URLパラメータがない場合はdata-municipalityを使用
+      // URLパラメータがない場合はdata属性を使用
       if (!municipality) {
         municipality = container.getAttribute('data-municipality') || '川越市';
       }
+      if (!examType) {
+        examType = container.getAttribute('data-exam_type');
+      }
       
-      ReactDOM.render(e(ExamDisplay, { municipality }), container);
+      ReactDOM.render(e(ExamDisplay, { municipality, examType }), container);
     }
   });
 
