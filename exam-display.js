@@ -256,7 +256,7 @@
         const groupedData = getGroupedData();
         return { 
           totalExamTypes: groupedData.length,
-          totalPositions: null, // 募集人数合計は表示しない
+          totalPositions: groupedData.reduce((sum, group) => sum + group.positions.length, 0), // 全職種数を計算
           avgRatio: null // 要約表示では計算しない
         };
       } else {
@@ -318,12 +318,16 @@
           
           // 統計サマリー
           stats && e('div', { 
-            className: 'grid grid-cols-1 gap-4 mb-4',
+            className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-4',
             key: 'stats'
           }, [
             e('div', { className: 'bg-blue-50 p-3 rounded-lg text-center', key: 'stat1' }, [
               e('div', { className: 'text-2xl font-bold text-blue-600', key: 'count' }, stats.totalExamTypes),
               e('div', { className: 'text-sm text-blue-800', key: 'label' }, '試験区分')
+            ]),
+            e('div', { className: 'bg-green-50 p-3 rounded-lg text-center', key: 'stat2' }, [
+              e('div', { className: 'text-2xl font-bold text-green-600', key: 'total' }, stats.totalPositions),
+              e('div', { className: 'text-sm text-green-800', key: 'label' }, '募集職種数')
             ])
           ])
         ]),
