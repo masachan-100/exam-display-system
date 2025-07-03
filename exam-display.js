@@ -164,8 +164,11 @@
             }
             
             // 2. 募集人数による並び替え（多い順）
-            const recruitA = a.recruit_number || 0;
-            const recruitB = b.recruit_number || 0;
+            const recruitA = parseInt(a.recruit_number) || 0;
+            const recruitB = parseInt(b.recruit_number) || 0;
+            
+            // デバッグ用
+            console.log(`比較: ${a.position}(${recruitA}名) vs ${b.position}(${recruitB}名)`);
             
             if (recruitA !== recruitB) {
               return recruitB - recruitA;
@@ -251,16 +254,15 @@
     const getStatistics = () => {
       if (displayMode === 'summary') {
         const groupedData = getGroupedData();
-        const totalPositions = groupedData.reduce((sum, group) => sum + group.total_positions, 0);
         return { 
           totalExamTypes: groupedData.length,
-          totalPositions,
+          totalPositions: null, // 募集人数合計は表示しない
           avgRatio: null // 要約表示では計算しない
         };
       } else {
         if (!examData.length) return null;
         
-        const totalPositions = examData.reduce((sum, exam) => sum + (exam.recruit_number || 0), 0);
+        const totalPositions = examData.length; // 職種数をカウント
         const avgRatio = examData.reduce((sum, exam) => {
           const latestResult = exam.examResults?.[0];
           return sum + (latestResult?.ratio || 0);
@@ -316,16 +318,12 @@
           
           // 統計サマリー
           stats && e('div', { 
-            className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-4',
+            className: 'grid grid-cols-1 gap-4 mb-4',
             key: 'stats'
           }, [
             e('div', { className: 'bg-blue-50 p-3 rounded-lg text-center', key: 'stat1' }, [
               e('div', { className: 'text-2xl font-bold text-blue-600', key: 'count' }, stats.totalExamTypes),
               e('div', { className: 'text-sm text-blue-800', key: 'label' }, '試験区分')
-            ]),
-            e('div', { className: 'bg-green-50 p-3 rounded-lg text-center', key: 'stat2' }, [
-              e('div', { className: 'text-2xl font-bold text-green-600', key: 'total' }, stats.totalPositions),
-              e('div', { className: 'text-sm text-green-800', key: 'label' }, '募集人数合計')
             ])
           ])
         ]),
@@ -355,11 +353,7 @@
                   className: 'text-gray-600 mb-3',
                   key: 'positions'
                 }, `${uniquePositions.length}職種: ${uniquePositions.join('、')}`),
-                e('div', { className: 'grid grid-cols-3 gap-4 text-sm', key: 'details' }, [
-                  e('div', { key: 'recruit' }, [
-                    e('div', { className: 'text-gray-500', key: 'label' }, '募集人数'),
-                    e('div', { className: 'font-semibold text-blue-600', key: 'value' }, `${group.total_positions}名`)
-                  ]),
+                e('div', { className: 'grid grid-cols-2 gap-4 text-sm', key: 'details' }, [
                   e('div', { key: 'active' }, [
                     e('div', { className: 'text-gray-500', key: 'label' }, '募集中'),
                     e('div', { className: 'font-semibold text-green-600', key: 'value' }, `${group.active_count}件`)
@@ -418,16 +412,12 @@
         
         // 統計サマリー
         stats && e('div', { 
-          className: 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-4',
+          className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-4',
           key: 'stats'
         }, [
           e('div', { className: 'bg-blue-50 p-3 rounded-lg text-center', key: 'stat1' }, [
             e('div', { className: 'text-2xl font-bold text-blue-600', key: 'count' }, examData.length),
-            e('div', { className: 'text-sm text-blue-800', key: 'label' }, '試験区分')
-          ]),
-          e('div', { className: 'bg-green-50 p-3 rounded-lg text-center', key: 'stat2' }, [
-            e('div', { className: 'text-2xl font-bold text-green-600', key: 'total' }, stats.totalPositions),
-            e('div', { className: 'text-sm text-green-800', key: 'label' }, '募集人数合計')
+            e('div', { className: 'text-sm text-blue-800', key: 'label' }, '職種数')
           ]),
           e('div', { className: 'bg-orange-50 p-3 rounded-lg text-center', key: 'stat3' }, [
             e('div', { className: 'text-2xl font-bold text-orange-600', key: 'avg' }, stats.avgRatio),
@@ -606,21 +596,29 @@
                 
                 exam.examResults && exam.examResults.length > 0 ? 
                   e('div', { className: 'space-y-3', key: 'results-list' }, 
-                    exam.examResults.map((result, index) => 
-                      e('div', { 
-                        key: index,
-                        className: 'bg-gray-50 p-3 rounded-lg'
-                      }, [
-                        e('div', { className: 'flex justify-between items-center mb-2', key: 'header' }, [
-                          e('span', { className: 'font-medium text-gray-800', key: 'year' }, result.year),
-                          e('span', { className: 'text-xl font-bold text-orange-600', key: 'ratio' }, `${result.ratio}倍`)
-                        ]),
-                        e('div', { className: 'grid grid-cols-2 gap-4 text-sm text-gray-600', key: 'details' }, [
-                          e('div', { key: 'applicants' }, `受験者数: ${result.applicants}名`),
-                          e('div', { key: 'successful' }, `合格者数: ${result.successful}名`)
+                    exam.examResults
+                      .sort((a, b) => {
+                        // 年度順ソート（新しい年度が上）
+                        const yearA = parseInt(a.year.replace('年', '')) || 0;
+                        const yearB = parseInt(b.year.replace('年', '')) || 0;
+                        return yearB - yearA;
+                      })
+                      .slice(0, 3) // 最新3年分のみ表示
+                      .map((result, index) => 
+                        e('div', { 
+                          key: index,
+                          className: 'bg-gray-50 p-3 rounded-lg'
+                        }, [
+                          e('div', { className: 'flex justify-between items-center mb-2', key: 'header' }, [
+                            e('span', { className: 'font-medium text-gray-800', key: 'year' }, result.year),
+                            e('span', { className: 'text-xl font-bold text-orange-600', key: 'ratio' }, `${result.ratio}倍`)
+                          ]),
+                          e('div', { className: 'grid grid-cols-2 gap-4 text-sm text-gray-600', key: 'details' }, [
+                            e('div', { key: 'applicants' }, `受験者数: ${result.applicants}名`),
+                            e('div', { key: 'successful' }, `合格者数: ${result.successful}名`)
+                          ])
                         ])
-                      ])
-                    )
+                      )
                   ) : 
                   e('p', { className: 'text-gray-500', key: 'no-data' }, '過去のデータはありません'),
                 
