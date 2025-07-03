@@ -482,7 +482,7 @@
                 ]),
                 e('div', { className: 'flex items-center gap-1', key: 'recruit' }, [
                   e(Users, { key: 'icon' }),
-                  e('span', { key: 'text' }, `募集: ${exam.recruit_number || '-'}名`)
+                  e('span', { key: 'text' }, `募集: ${exam.recruit_number || '-'}`)
                 ])
               ]),
               
@@ -537,7 +537,7 @@
                   e('div', { className: 'grid grid-cols-2 gap-4', key: 'recruit-status' }, [
                     e('div', { key: 'recruit' }, [
                       e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '募集人数'),
-                      e('p', { className: 'text-lg font-semibold text-blue-600', key: 'value' }, `${exam.recruit_number || '-'}名`)
+                      e('p', { className: 'text-lg font-semibold text-blue-600', key: 'value' }, exam.recruit_number || '-')
                     ]),
                     e('div', { key: 'status' }, [
                       e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '募集状況'),
