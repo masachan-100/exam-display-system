@@ -167,6 +167,9 @@
             const recruitA = a.recruit_number || 0;
             const recruitB = b.recruit_number || 0;
             
+            // デバッグ用
+            console.log(`比較: ${a.position}(${recruitA}名) vs ${b.position}(${recruitB}名)`);
+            
             if (recruitA !== recruitB) {
               return recruitB - recruitA;
             }
