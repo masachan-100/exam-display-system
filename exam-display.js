@@ -145,7 +145,7 @@
           let filteredData = data;
           if (examType && displayMode !== 'summary') {
             filteredData = data.filter(exam => 
-              exam.exam_type && exam.exam_type.includes(examType)
+              exam.exam_type === examType
             );
           }
           
