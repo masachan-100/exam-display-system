@@ -163,7 +163,15 @@
               return priorityB - priorityA;
             }
             
-            // 2. 申込締切日による並び替え（遅い順）
+            // 2. 募集人数による並び替え（多い順）
+            const recruitA = a.recruit_number || 0;
+            const recruitB = b.recruit_number || 0;
+            
+            if (recruitA !== recruitB) {
+              return recruitB - recruitA;
+            }
+            
+            // 3. 申込締切日による並び替え（遅い順）
             const endDateA = new Date(a.application_end);
             const endDateB = new Date(b.application_end);
             
@@ -171,7 +179,7 @@
               return endDateB - endDateA;
             }
             
-            // 3. 試験日による並び替え（早い順）
+            // 4. 試験日による並び替え（早い順）
             return new Date(a.exam_date) - new Date(b.exam_date);
           });
           
@@ -224,11 +232,6 @@
       
       // グループ化されたデータもソート
       return Object.values(grouped).sort((a, b) => {
-        // 募集人数が多い順
-        if (a.total_positions !== b.total_positions) {
-          return b.total_positions - a.total_positions;
-        }
-        
         // 募集中の数が多い順
         if (a.active_count !== b.active_count) {
           return b.active_count - a.active_count;
