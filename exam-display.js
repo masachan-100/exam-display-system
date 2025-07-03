@@ -1,4 +1,4 @@
-// 公務員試験情報表示システム（要約表示モード対応版）
+// 公務員試験情報表示システム（修正版）
 (function() {
   'use strict';
 
@@ -141,7 +141,7 @@
           }
           const data = await response.json();
           
-          // クライアントサイドでのフィルタリング
+          // クライアントサイドでのフィルタリング（完全一致）
           let filteredData = data;
           if (examType && displayMode !== 'summary') {
             filteredData = data.filter(exam => 
@@ -149,11 +149,12 @@
             );
           }
           
-          // 募集状況による優先ソート
+          // 改良されたソート処理
           const sortedData = filteredData.sort((a, b) => {
             const statusA = getApplicationStatus(a.application_start, a.application_end);
             const statusB = getApplicationStatus(b.application_start, b.application_end);
             
+            // 1. 募集状況による優先順位
             const priority = { active: 3, upcoming: 2, closed: 1 };
             const priorityA = priority[statusA.status] || 0;
             const priorityB = priority[statusB.status] || 0;
@@ -162,6 +163,15 @@
               return priorityB - priorityA;
             }
             
+            // 2. 申込締切日による並び替え（遅い順）
+            const endDateA = new Date(a.application_end);
+            const endDateB = new Date(b.application_end);
+            
+            if (endDateA.getTime() !== endDateB.getTime()) {
+              return endDateB - endDateA;
+            }
+            
+            // 3. 試験日による並び替え（早い順）
             return new Date(a.exam_date) - new Date(b.exam_date);
           });
           
@@ -191,7 +201,8 @@
             total_positions: 0,
             active_count: 0,
             upcoming_count: 0,
-            latest_exam_date: null
+            latest_exam_date: null,
+            latest_application_end: null
           };
         }
         
@@ -205,9 +216,27 @@
         if (!grouped[examType].latest_exam_date || new Date(exam.exam_date) > new Date(grouped[examType].latest_exam_date)) {
           grouped[examType].latest_exam_date = exam.exam_date;
         }
+        
+        if (!grouped[examType].latest_application_end || new Date(exam.application_end) > new Date(grouped[examType].latest_application_end)) {
+          grouped[examType].latest_application_end = exam.application_end;
+        }
       });
       
-      return Object.values(grouped);
+      // グループ化されたデータもソート
+      return Object.values(grouped).sort((a, b) => {
+        // 募集中の数が多い順
+        if (a.active_count !== b.active_count) {
+          return b.active_count - a.active_count;
+        }
+        
+        // 申込締切日が遅い順
+        if (a.latest_application_end && b.latest_application_end) {
+          return new Date(b.latest_application_end) - new Date(a.latest_application_end);
+        }
+        
+        // 試験区分名順
+        return a.exam_type.localeCompare(b.exam_type);
+      });
     };
 
     // 統計データ計算
@@ -250,14 +279,13 @@
 
     const stats = getStatistics();
 
-    // タイトル表示の調整
+    // タイトル表示の調整（修正）
     const getDisplayTitle = () => {
       let title = `${municipality} 公務員試験情報`;
       if (examType && displayMode !== 'summary') {
         title += ` (${examType})`;
-      } else if (displayMode === 'summary') {
-        title += ' (要約)';
       }
+      // 要約表示でも (要約) は追加しない
       return title;
     };
 
@@ -314,10 +342,11 @@
                   className: `text-xl font-bold mb-2 ${linkUrl ? 'text-blue-700' : 'text-gray-800'}`,
                   key: 'exam-type'
                 }, group.exam_type),
+                // 全職種を表示（修正）
                 e('p', { 
                   className: 'text-gray-600 mb-3',
                   key: 'positions'
-                }, `${uniquePositions.length}職種: ${uniquePositions.slice(0, 3).join('、')}${uniquePositions.length > 3 ? '...' : ''}`),
+                }, `${uniquePositions.length}職種: ${uniquePositions.join('、')}`),
                 e('div', { className: 'grid grid-cols-3 gap-4 text-sm', key: 'details' }, [
                   e('div', { key: 'recruit' }, [
                     e('div', { className: 'text-gray-500', key: 'label' }, '募集人数'),
