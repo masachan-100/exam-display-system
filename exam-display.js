@@ -112,6 +112,15 @@
       });
     };
 
+    // 試験日の表示（範囲対応）
+    const formatExamDate = (startDate, endDate) => {
+      if (!startDate) return '-';
+      const formattedStart = formatDate(startDate);
+      if (!endDate) return formattedStart;
+      const formattedEnd = formatDate(endDate);
+      return `${formattedStart} ～ ${formattedEnd}`;
+    };
+
     // 申し込み状況判定
     const getApplicationStatus = (startDate, endDate) => {
       const now = new Date();
@@ -213,6 +222,7 @@
             active_count: 0,
             upcoming_count: 0,
             latest_exam_date: null,
+            latest_exam_date_end: null,
             latest_application_end: null
           };
         }
@@ -226,6 +236,7 @@
         
         if (!grouped[examType].latest_exam_date || new Date(exam.exam_date) > new Date(grouped[examType].latest_exam_date)) {
           grouped[examType].latest_exam_date = exam.exam_date;
+          grouped[examType].latest_exam_date_end = exam.exam_date_end;
         }
         
         if (!grouped[examType].latest_application_end || new Date(exam.application_end) > new Date(grouped[examType].latest_application_end)) {
@@ -364,7 +375,7 @@
                   ]),
                   e('div', { key: 'exam-date' }, [
                     e('div', { className: 'text-gray-500', key: 'label' }, '直近試験日'),
-                    e('div', { className: 'font-semibold text-orange-600', key: 'value' }, formatDate(group.latest_exam_date))
+                    e('div', { className: 'font-semibold text-orange-600', key: 'value' }, formatExamDate(group.latest_exam_date, group.latest_exam_date_end))
                   ])
                 ])
               ]),
@@ -478,7 +489,7 @@
               e('div', { className: 'text-sm text-gray-600', key: 'schedule' }, [
                 e('div', { className: 'flex items-center gap-1 mb-1', key: 'exam-date' }, [
                   e(Calendar, { key: 'icon' }),
-                  e('span', { key: 'text' }, `試験日: ${formatDate(exam.exam_date)}`)
+                  e('span', { key: 'text' }, `試験日: ${formatExamDate(exam.exam_date, exam.exam_date_end)}`)
                 ]),
                 e('div', { className: 'flex items-center gap-1', key: 'recruit' }, [
                   e(Users, { key: 'icon' }),
@@ -555,7 +566,7 @@
                   
                   e('div', { key: 'exam-date' }, [
                     e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '試験日'),
-                    e('p', { className: 'text-lg font-semibold text-green-600', key: 'value' }, formatDate(exam.exam_date))
+                    e('p', { className: 'text-lg font-semibold text-green-600', key: 'value' }, formatExamDate(exam.exam_date, exam.exam_date_end))
                   ])
                 ]),
                 
