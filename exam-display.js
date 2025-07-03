@@ -224,6 +224,11 @@
       
       // グループ化されたデータもソート
       return Object.values(grouped).sort((a, b) => {
+        // 募集人数が多い順
+        if (a.total_positions !== b.total_positions) {
+          return b.total_positions - a.total_positions;
+        }
+        
         // 募集中の数が多い順
         if (a.active_count !== b.active_count) {
           return b.active_count - a.active_count;
