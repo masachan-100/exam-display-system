@@ -1,701 +1,281 @@
-// 公務員試験情報表示システム（修正版）
-(function() {
-  'use strict';
+/**
+ * 公務員試験表示システム
+ * exam-display.js
+ */
 
-  // React要素作成用のヘルパー
-  const e = React.createElement;
-  const { useState, useEffect } = React;
-
-  // アイコンコンポーネント
-  const Calendar = () => e('svg', {
-    className: 'h-4 w-4',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
-  }));
-
-  const Users = () => e('svg', {
-    className: 'h-4 w-4',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'
-  }));
-
-  const ExternalLink = () => e('svg', {
-    className: 'h-4 w-4',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-  }));
-
-  const TrendingUp = () => e('svg', {
-    className: 'h-5 w-5',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'
-  }));
-
-  const FileText = () => e('svg', {
-    className: 'h-4 w-4',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-  }));
-
-  const MapPin = () => e('svg', {
-    className: 'h-6 w-6',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z'
-  }), e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M15 11a3 3 0 11-6 0 3 3 0 016 0z'
-  }));
-
-  const ChevronRight = () => e('svg', {
-    className: 'h-5 w-5',
-    fill: 'none',
-    stroke: 'currentColor',
-    viewBox: '0 0 24 24'
-  }, e('path', {
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    strokeWidth: 2,
-    d: 'M9 5l7 7-7 7'
-  }));
-
-  // メインコンポーネント
-  const ExamDisplay = ({ municipality = '川越市', examType = null, displayMode = 'detail', links = [] }) => {
-    const [examData, setExamData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState('list');
-
-    // 日付フォーマット
-    const formatDate = (dateString) => {
-      if (!dateString) return '-';
-      return new Date(dateString).toLocaleDateString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    };
-
-    // 試験日の表示（範囲対応）
-    const formatExamDate = (startDate, endDate) => {
-      if (!startDate) return '-';
-      const formattedStart = formatDate(startDate);
-      if (!endDate) return formattedStart;
-      const formattedEnd = formatDate(endDate);
-      return `${formattedStart} ～ ${formattedEnd}`;
-    };
-
-    // 申し込み状況判定
-    const getApplicationStatus = (startDate, endDate) => {
-      const now = new Date();
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (now < start) return { status: 'upcoming', text: '募集前', color: 'gray' };
-      if (now >= start && now <= end) return { status: 'active', text: '募集中', color: 'green' };
-      return { status: 'closed', text: '募集終了', color: 'red' };
-    };
-
-    // データ取得
-    useEffect(() => {
-      const fetchExamData = async () => {
-        setLoading(true);
-        try {
-          // APIのURLを構築
-          let url = `https://haikakin.com/api/exam-api.php?municipality=${encodeURIComponent(municipality)}`;
-          if (examType && displayMode !== 'summary') {
-            url += `&exam_type=${encodeURIComponent(examType)}`;
-          }
-          
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error('データの取得に失敗しました');
-          }
-          const data = await response.json();
-          
-          // クライアントサイドでのフィルタリング（完全一致）
-          let filteredData = data;
-          if (examType && displayMode !== 'summary') {
-            filteredData = data.filter(exam => 
-              exam.exam_type === examType
-            );
-          }
-          
-          // 改良されたソート処理
-          const sortedData = filteredData.sort((a, b) => {
-            const statusA = getApplicationStatus(a.application_start, a.application_end);
-            const statusB = getApplicationStatus(b.application_start, b.application_end);
-            
-            // 1. 募集状況による優先順位
-            const priority = { active: 3, upcoming: 2, closed: 1 };
-            const priorityA = priority[statusA.status] || 0;
-            const priorityB = priority[statusB.status] || 0;
-            
-            if (priorityA !== priorityB) {
-              return priorityB - priorityA;
-            }
-            
-            // 2. 募集人数による並び替え（多い順）
-            const recruitA = parseInt(a.recruit_number) || 0;
-            const recruitB = parseInt(b.recruit_number) || 0;
-            
-            // デバッグ用
-            console.log(`比較: ${a.position}(${recruitA}名) vs ${b.position}(${recruitB}名)`);
-            
-            if (recruitA !== recruitB) {
-              return recruitB - recruitA;
-            }
-            
-            // 3. 申込締切日による並び替え（遅い順）
-            const endDateA = new Date(a.application_end);
-            const endDateB = new Date(b.application_end);
-            
-            if (endDateA.getTime() !== endDateB.getTime()) {
-              return endDateB - endDateA;
-            }
-            
-            // 4. 試験日による並び替え（早い順）
-            return new Date(a.exam_date) - new Date(b.exam_date);
-          });
-          
-          setExamData(sortedData);
-        } catch (error) {
-          console.error('データ取得エラー:', error);
-          setExamData([]);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      if (municipality) {
-        fetchExamData();
-      }
-    }, [municipality, examType, displayMode]);
-
-    // exam_typeでグループ化（要約表示用）
-    const getGroupedData = () => {
-      const grouped = {};
-      examData.forEach(exam => {
-        const examType = exam.exam_type || '未分類';
-        if (!grouped[examType]) {
-          grouped[examType] = {
-            exam_type: examType,
-            positions: [],
-            total_positions: 0,
-            active_count: 0,
-            upcoming_count: 0,
-            latest_exam_date: null,
-            latest_exam_date_end: null,
-            latest_application_end: null
-          };
-        }
-        
-        grouped[examType].positions.push(exam.position);
-        grouped[examType].total_positions += exam.recruit_number || 0;
-        
-        const status = getApplicationStatus(exam.application_start, exam.application_end);
-        if (status.status === 'active') grouped[examType].active_count++;
-        if (status.status === 'upcoming') grouped[examType].upcoming_count++;
-        
-        if (!grouped[examType].latest_exam_date || new Date(exam.exam_date) > new Date(grouped[examType].latest_exam_date)) {
-          grouped[examType].latest_exam_date = exam.exam_date;
-          grouped[examType].latest_exam_date_end = exam.exam_date_end;
-        }
-        
-        if (!grouped[examType].latest_application_end || new Date(exam.application_end) > new Date(grouped[examType].latest_application_end)) {
-          grouped[examType].latest_application_end = exam.application_end;
-        }
-      });
-      
-      // グループ化されたデータもソート
-      return Object.values(grouped).sort((a, b) => {
-        // 募集中の数が多い順
-        if (a.active_count !== b.active_count) {
-          return b.active_count - a.active_count;
-        }
-        
-        // 申込締切日が遅い順
-        if (a.latest_application_end && b.latest_application_end) {
-          return new Date(b.latest_application_end) - new Date(a.latest_application_end);
-        }
-        
-        // 試験区分名順
-        return a.exam_type.localeCompare(b.exam_type);
-      });
-    };
-
-    // 統計データ計算
-    const getStatistics = () => {
-      if (displayMode === 'summary') {
-        const groupedData = getGroupedData();
-        return { 
-          totalExamTypes: groupedData.length,
-          totalPositions: groupedData.reduce((sum, group) => sum + group.positions.length, 0), // 全職種数を計算
-          avgRatio: null // 要約表示では計算しない
-        };
-      } else {
-        if (!examData.length) return null;
-        
-        const totalPositions = examData.length; // 職種数をカウント
-        const avgRatio = examData.reduce((sum, exam) => {
-          const latestResult = exam.examResults?.[0];
-          return sum + (latestResult?.ratio || 0);
-        }, 0) / examData.length;
-        
-        return { totalPositions, avgRatio: avgRatio.toFixed(1) };
-      }
-    };
-
-    // リンク検索
-    const findLinkForExamType = (examType) => {
-      const linkData = links.find(link => link.exam_type === examType);
-      return linkData ? linkData.url : null;
-    };
-
-    if (loading) {
-      return e('div', {
-        className: 'flex justify-center items-center h-64'
-      }, 
-        e('div', { className: 'animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600' }),
-        e('span', { className: 'ml-2 text-gray-600' }, '試験情報を読み込み中...')
-      );
+class ExamDisplaySystem {
+    constructor() {
+        this.apiEndpoint = '/wp-json/wp/v2/exam-api'; // WordPressのREST API エンドポイント
+        this.init();
     }
 
-    const stats = getStatistics();
-
-    // タイトル表示の調整（修正）
-    const getDisplayTitle = () => {
-      let title = `${municipality} 公務員試験情報`;
-      if (examType && displayMode !== 'summary') {
-        title += ` (${examType})`;
-      }
-      // 要約表示でも (要約) は追加しない
-      return title;
-    };
-
-    // 要約表示
-    if (displayMode === 'summary') {
-      const groupedData = getGroupedData();
-      
-      return e('div', {
-        className: 'max-w-4xl mx-auto p-6 bg-white'
-      }, [
-        // ヘッダー
-        e('div', { className: 'mb-6', key: 'header' }, [
-          e('div', { className: 'flex items-center gap-2 mb-2', key: 'title' }, [
-            e(MapPin, { key: 'icon' }),
-            e('h1', { 
-              className: 'text-2xl font-bold text-gray-800',
-              key: 'h1'
-            }, getDisplayTitle())
-          ]),
-          
-          // 統計サマリー
-          stats && e('div', { 
-            className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-4',
-            key: 'stats'
-          }, [
-            e('div', { className: 'bg-blue-50 p-3 rounded-lg text-center', key: 'stat1' }, [
-              e('div', { className: 'text-2xl font-bold text-blue-600', key: 'count' }, stats.totalExamTypes),
-              e('div', { className: 'text-sm text-blue-800', key: 'label' }, '試験区分')
-            ]),
-            e('div', { className: 'bg-green-50 p-3 rounded-lg text-center', key: 'stat2' }, [
-              e('div', { className: 'text-2xl font-bold text-green-600', key: 'total' }, stats.totalPositions),
-              e('div', { className: 'text-sm text-green-800', key: 'label' }, '募集職種数')
-            ])
-          ])
-        ]),
-
-        // 要約カード表示
-        groupedData.length > 0 ? e('div', { 
-          className: 'space-y-4',
-          key: 'summary-list'
-        }, groupedData.map((group, index) => {
-          const linkUrl = findLinkForExamType(group.exam_type);
-          const uniquePositions = [...new Set(group.positions)];
-          
-          const cardContent = e('div', {
-            key: index,
-            className: `border border-gray-200 rounded-lg p-6 transition-all duration-200 ${
-              linkUrl ? 'hover:shadow-lg hover:border-blue-300 cursor-pointer bg-gradient-to-r from-blue-50 to-white' : 'hover:shadow-md'
-            }`
-          }, [
-            e('div', { className: 'flex justify-between items-center', key: 'content' }, [
-              e('div', { className: 'flex-1', key: 'main-info' }, [
-                e('h3', { 
-                  className: `text-xl font-bold mb-2 ${linkUrl ? 'text-blue-700' : 'text-gray-800'}`,
-                  key: 'exam-type'
-                }, group.exam_type),
-                // 全職種を表示（修正）
-                e('p', { 
-                  className: 'text-gray-600 mb-3',
-                  key: 'positions'
-                }, `${uniquePositions.length}職種: ${uniquePositions.join('、')}`),
-                e('div', { className: 'grid grid-cols-2 gap-4 text-sm', key: 'details' }, [
-                  e('div', { key: 'active' }, [
-                    e('div', { className: 'text-gray-500', key: 'label' }, '募集中'),
-                    e('div', { className: 'font-semibold text-green-600', key: 'value' }, `${group.active_count}件`)
-                  ]),
-                  e('div', { key: 'exam-date' }, [
-                    e('div', { className: 'text-gray-500', key: 'label' }, '直近試験日'),
-                    e('div', { className: 'font-semibold text-orange-600', key: 'value' }, formatExamDate(group.latest_exam_date, group.latest_exam_date_end))
-                  ])
-                ])
-              ]),
-              linkUrl && e('div', { className: 'ml-4', key: 'arrow' }, [
-                e(ChevronRight, { key: 'icon' })
-              ])
-            ])
-          ]);
-
-          // リンクがある場合はaタグで囲む
-          if (linkUrl) {
-            return e('a', {
-              key: index,
-              href: linkUrl,
-              className: 'block no-underline'
-            }, cardContent);
-          }
-
-          return cardContent;
-        })) : e('div', {
-          className: 'text-center py-8 text-gray-500',
-          key: 'no-data'
-        }, `${municipality}の試験情報は現在登録されていません。`)
-      ]);
-    }
-
-    // 通常の詳細表示（既存のコード）
-    return e('div', {
-      className: 'max-w-4xl mx-auto p-6 bg-white'
-    }, [
-      // ヘッダー
-      e('div', { className: 'mb-6', key: 'header' }, [
-        e('div', { className: 'flex items-center gap-2 mb-2', key: 'title' }, [
-          e(MapPin, { key: 'icon' }),
-          e('h1', { 
-            className: 'text-2xl font-bold text-gray-800',
-            key: 'h1'
-          }, getDisplayTitle())
-        ]),
-        
-        // フィルター情報表示
-        examType && e('div', {
-          className: 'mb-4 p-3 bg-blue-50 rounded-lg',
-          key: 'filter-info'
-        }, [
-          e('div', { className: 'text-sm text-blue-800', key: 'filter-text' }, 
-            `絞り込み条件: ${examType}`)
-        ]),
-        
-        // 統計サマリー
-        stats && e('div', { 
-          className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-4',
-          key: 'stats'
-        }, [
-          e('div', { className: 'bg-blue-50 p-3 rounded-lg text-center', key: 'stat1' }, [
-            e('div', { className: 'text-2xl font-bold text-blue-600', key: 'count' }, examData.length),
-            e('div', { className: 'text-sm text-blue-800', key: 'label' }, '職種数')
-          ]),
-          e('div', { className: 'bg-orange-50 p-3 rounded-lg text-center', key: 'stat3' }, [
-            e('div', { className: 'text-2xl font-bold text-orange-600', key: 'avg' }, stats.avgRatio),
-            e('div', { className: 'text-sm text-orange-800', key: 'label' }, '平均倍率')
-          ])
-        ]),
-
-        // 表示モード切替
-        e('div', { className: 'flex gap-2 mb-4', key: 'mode-toggle' }, [
-          e('button', {
-            key: 'list-btn',
-            onClick: () => setViewMode('list'),
-            className: `px-4 py-2 rounded-lg transition-colors ${
-              viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`
-          }, '一覧表示'),
-          e('button', {
-            key: 'detail-btn',
-            onClick: () => setViewMode('detail'),
-            className: `px-4 py-2 rounded-lg transition-colors ${
-              viewMode === 'detail' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`
-          }, '詳細表示')
-        ])
-      ]),
-
-      // 試験情報表示（詳細表示用 - 既存のコードをそのまま使用）
-      examData.length > 0 ? e('div', { 
-        className: viewMode === 'list' ? 'space-y-4' : 'space-y-6',
-        key: 'exam-list'
-      }, examData.map((exam) => {
-        const applicationStatus = getApplicationStatus(exam.application_start, exam.application_end);
-        const latestResult = exam.examResults?.[0];
-        
-        if (viewMode === 'list') {
-          return e('div', {
-            key: exam.id,
-            className: 'border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow'
-          }, [
-            e('div', { className: 'grid grid-cols-1 md:grid-cols-4 gap-4', key: 'content' }, [
-              // 基本情報
-              e('div', { key: 'basic' }, [
-                e('h3', { className: 'font-semibold text-lg text-gray-800', key: 'type' }, exam.exam_type),
-                e('p', { className: 'text-blue-600 font-medium', key: 'position' }, exam.position),
-                e('div', { className: 'flex items-center gap-1 mt-1', key: 'status' }, [
-                  e('span', {
-                    key: 'badge',
-                    className: `px-2 py-1 rounded-full text-xs font-medium bg-${applicationStatus.color}-100 text-${applicationStatus.color}-800`
-                  }, applicationStatus.text)
-                ])
-              ]),
-              
-              // 日程情報
-              e('div', { className: 'text-sm text-gray-600', key: 'schedule' }, [
-                e('div', { className: 'flex items-center gap-1 mb-1', key: 'exam-date' }, [
-                  e(Calendar, { key: 'icon' }),
-                  e('span', { key: 'text' }, `試験日: ${formatExamDate(exam.exam_date, exam.exam_date_end)}`)
-                ]),
-                e('div', { className: 'flex items-center gap-1', key: 'recruit' }, [
-                  e(Users, { key: 'icon' }),
-                  e('span', { key: 'text' }, `募集: ${exam.recruit_number || '-'}`)
-                ])
-              ]),
-              
-              // 申込期間
-              e('div', { className: 'text-sm text-gray-600', key: 'application' }, [
-                e('div', { key: 'start' }, `申込: ${formatDate(exam.application_start)}`),
-                e('div', { key: 'end' }, `　 ～ ${formatDate(exam.application_end)}`)
-              ]),
-              
-              // 倍率・リンク
-              e('div', { className: 'text-right', key: 'actions' }, [
-                latestResult && e('div', { 
-                  className: 'bg-orange-50 p-2 rounded mb-2',
-                  key: 'ratio'
-                }, [
-                  e('div', { className: 'text-lg font-bold text-orange-600', key: 'value' }, `${latestResult.ratio}倍`),
-                  e('div', { className: 'text-xs text-orange-800', key: 'year' }, latestResult.year)
-                ]),
-                exam.official_url && e('a', {
-                  key: 'link',
-                  href: exam.official_url,
-                  target: '_blank',
-                  rel: 'noopener noreferrer',
-                  className: 'inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm'
-                }, [
-                  e(ExternalLink, { key: 'icon' }),
-                  '詳細情報'
-                ])
-              ])
-            ])
-          ]);
+    init() {
+        // DOMが読み込まれたら実行
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.initializeShortcodes());
         } else {
-          // 詳細表示（既存のコードと同じ）
-          return e('div', {
-            key: exam.id,
-            className: 'border border-gray-200 rounded-lg p-6'
-          }, [
-            e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-6', key: 'content' }, [
-              // 基本情報
-              e('div', { key: 'basic' }, [
-                e('h3', { 
-                  className: 'text-xl font-bold text-gray-800 mb-4',
-                  key: 'title'
-                }, `${exam.exam_type} - ${exam.position}`),
-                
-                e('div', { className: 'space-y-3', key: 'details' }, [
-                  e('div', { key: 'age' }, [
-                    e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '年齢要件'),
-                    e('p', { className: 'text-gray-600', key: 'value' }, exam.age_requirement)
-                  ]),
-                  
-                  e('div', { className: 'grid grid-cols-2 gap-4', key: 'recruit-status' }, [
-                    e('div', { key: 'recruit' }, [
-                      e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '募集人数'),
-                      e('p', { className: 'text-lg font-semibold text-blue-600', key: 'value' }, exam.recruit_number || '-')
-                    ]),
-                    e('div', { key: 'status' }, [
-                      e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '募集状況'),
-                      e('span', {
-                        key: 'badge',
-                        className: `px-3 py-1 rounded-full text-sm font-medium bg-${applicationStatus.color}-100 text-${applicationStatus.color}-800`
-                      }, applicationStatus.text)
-                    ])
-                  ]),
-                  
-                  e('div', { key: 'application-period' }, [
-                    e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '申込期間'),
-                    e('p', { className: 'text-gray-600', key: 'value' }, `${formatDate(exam.application_start)} ～ ${formatDate(exam.application_end)}`)
-                  ]),
-                  
-                  e('div', { key: 'exam-date' }, [
-                    e('label', { className: 'block text-sm font-medium text-gray-700', key: 'label' }, '試験日'),
-                    e('p', { className: 'text-lg font-semibold text-green-600', key: 'value' }, formatExamDate(exam.exam_date, exam.exam_date_end))
-                  ])
-                ]),
-                
-                // 試験内容
-                (exam.first_test || exam.second_test || exam.third_test) && e('div', {
-                  className: 'mt-6 p-4 bg-blue-50 rounded-lg',
-                  key: 'exam-content'
-                }, [
-                  e('h4', { 
-                    className: 'font-semibold text-blue-800 mb-3 flex items-center gap-2',
-                    key: 'title'
-                  }, [
-                    e(FileText, { key: 'icon' }),
-                    '試験内容'
-                  ]),
-                  e('div', { className: 'space-y-2 text-sm', key: 'content' }, [
-                    exam.first_test && e('div', { key: 'first' }, [
-                      e('span', { className: 'font-medium text-blue-700', key: 'label' }, '第1次試験:'),
-                      e('span', { className: 'text-blue-600 ml-2', key: 'value' }, exam.first_test)
-                    ]),
-                    exam.second_test && e('div', { key: 'second' }, [
-                      e('span', { className: 'font-medium text-blue-700', key: 'label' }, '第2次試験:'),
-                      e('span', { className: 'text-blue-600 ml-2', key: 'value' }, exam.second_test)
-                    ]),
-                    exam.third_test && e('div', { key: 'third' }, [
-                      e('span', { className: 'font-medium text-blue-700', key: 'label' }, '第3次試験:'),
-                      e('span', { className: 'text-blue-600 ml-2', key: 'value' }, exam.third_test)
-                    ])
-                  ])
-                ])
-              ]),
-              
-              // 過去の結果
-              e('div', { key: 'results' }, [
-                e('h4', { 
-                  className: 'text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2',
-                  key: 'title'
-                }, [
-                  e(TrendingUp, { key: 'icon' }),
-                  '過去の試験結果'
-                ]),
-                
-                exam.examResults && exam.examResults.length > 0 ? 
-                  e('div', { className: 'space-y-3', key: 'results-list' }, 
-                    exam.examResults
-                      .sort((a, b) => {
-                        // 年度順ソート（新しい年度が上）
-                        const yearA = parseInt(a.year.replace('年', '')) || 0;
-                        const yearB = parseInt(b.year.replace('年', '')) || 0;
-                        return yearB - yearA;
-                      })
-                      .slice(0, 3) // 最新3年分のみ表示
-                      .map((result, index) => 
-                        e('div', { 
-                          key: index,
-                          className: 'bg-gray-50 p-3 rounded-lg'
-                        }, [
-                          e('div', { className: 'flex justify-between items-center mb-2', key: 'header' }, [
-                            e('span', { className: 'font-medium text-gray-800', key: 'year' }, result.year),
-                            e('span', { className: 'text-xl font-bold text-orange-600', key: 'ratio' }, `${result.ratio}倍`)
-                          ]),
-                          e('div', { className: 'grid grid-cols-2 gap-4 text-sm text-gray-600', key: 'details' }, [
-                            e('div', { key: 'applicants' }, `受験者数: ${result.applicants}名`),
-                            e('div', { key: 'successful' }, `合格者数: ${result.successful}名`)
-                          ])
-                        ])
-                      )
-                  ) : 
-                  e('p', { className: 'text-gray-500', key: 'no-data' }, '過去のデータはありません'),
-                
-                e('div', { className: 'mt-4', key: 'official-link' },
-                  exam.official_url && e('a', {
-                    href: exam.official_url,
-                    target: '_blank',
-                    rel: 'noopener noreferrer',
-                    className: 'inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors'
-                  }, [
-                    e(ExternalLink, { key: 'icon' }),
-                    '公式サイトで詳細を確認'
-                  ])
-                )
-              ])
-            ])
-          ]);
+            this.initializeShortcodes();
         }
-      })) : e('div', {
-        className: 'text-center py-8 text-gray-500',
-        key: 'no-data'
-      }, examType ? 
-        `${municipality}の「${examType}」試験情報は現在登録されていません。` :
-        `${municipality}の試験情報は現在登録されていません。`)
-    ]);
-  };
-
-  // 初期化
-  document.addEventListener('DOMContentLoaded', function() {
-    const container = document.getElementById('exam-display-root');
-    if (container) {
-      // URLパラメータから取得
-      const urlParams = new URLSearchParams(window.location.search);
-      let municipality = urlParams.get('municipality');
-      let examType = urlParams.get('exam_type');
-      let displayMode = urlParams.get('display_mode');
-      let links = [];
-
-      // URLパラメータがない場合はdata属性を使用
-      if (!municipality) {
-        municipality = container.getAttribute('data-municipality') || '川越市';
-      }
-      if (!examType) {
-        examType = container.getAttribute('data-exam_type');
-      }
-      if (!displayMode) {
-        displayMode = container.getAttribute('data-display-mode') || 'detail';
-      }
-      
-      // data-linksをパース
-      const linksData = container.getAttribute('data-links');
-      if (linksData) {
-        try {
-          links = JSON.parse(linksData);
-        } catch (error) {
-          console.error('data-linksのJSONパースエラー:', error);
-          links = [];
-        }
-      }
-      
-      ReactDOM.render(e(ExamDisplay, { municipality, examType, displayMode, links }), container);
     }
-  });
 
-})();
+    // ショートコード風の要素を検索して初期化
+    initializeShortcodes() {
+        const examContainers = document.querySelectorAll('[data-exam-display]');
+        examContainers.forEach(container => {
+            this.renderExamList(container);
+        });
+    }
+
+    // 試験一覧を表示
+    async renderExamList(container) {
+        const municipality = container.dataset.municipality || '';
+        const prefecture = container.dataset.prefecture || '';
+        const limit = parseInt(container.dataset.limit) || 50;
+        const style = container.dataset.style || 'card';
+
+        try {
+            // ローディング表示
+            container.innerHTML = this.getLoadingHTML();
+
+            // データ取得（実際の実装では適切なAPIエンドポイントを使用）
+            const examData = await this.fetchExamData(municipality, prefecture, limit);
+
+            if (!examData || examData.length === 0) {
+                container.innerHTML = this.getNoResultsHTML();
+                return;
+            }
+
+            // スタイル別レンダリング
+            switch (style) {
+                case 'table':
+                    container.innerHTML = this.renderTableStyle(examData, municipality);
+                    break;
+                case 'list':
+                    container.innerHTML = this.renderListStyle(examData, municipality);
+                    break;
+                case 'card':
+                default:
+                    container.innerHTML = this.renderCardStyle(examData, municipality);
+            }
+
+            // イベントリスナー追加
+            this.addEventListeners(container);
+
+        } catch (error) {
+            console.error('試験データの取得に失敗:', error);
+            container.innerHTML = this.getErrorHTML();
+        }
+    }
+
+    // データ取得（模擬実装 - 実際はWordPressのデータベースから取得）
+    async fetchExamData(municipality, prefecture, limit) {
+        // 実際の実装では、WordPressのREST APIまたはAJAXでデータベースにアクセス
+        // 現在は模擬データを返す
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve(this.getMockData(municipality));
+            }, 500);
+        });
+    }
+
+    // カードスタイルのレンダリング
+    renderCardStyle(examData, municipality) {
+        const html = `
+            <div class="exam-list-container">
+                <div class="exam-list-header">
+                    <h2 class="municipality-title">${municipality} 公務員試験一覧</h2>
+                    <p class="exam-count">募集中の試験: <strong>${examData.length}件</strong></p>
+                </div>
+                <div class="exam-cards-grid">
+                    ${examData.map(exam => this.createExamCard(exam)).join('')}
+                </div>
+            </div>
+        `;
+        return html;
+    }
+
+    // 試験カードの作成
+    createExamCard(exam) {
+        const statusClass = this.getExamStatus(exam.application_end);
+        const remainingDays = this.getRemainingDays(exam.application_end);
+        
+        return `
+            <div class="exam-card ${statusClass}">
+                <div class="exam-card-header">
+                    <h3 class="exam-title">${exam.exam_title}</h3>
+                    <span class="exam-status ${statusClass}">
+                        ${this.getStatusText(statusClass, remainingDays)}
+                    </span>
+                </div>
+                
+                <div class="exam-card-body">
+                    <div class="exam-info-item">
+                        <span class="exam-label">募集職種:</span>
+                        <span class="exam-value job-categories">${exam.job_categories}</span>
+                    </div>
+                    
+                    <div class="exam-info-item">
+                        <span class="exam-label">申込期間:</span>
+                        <span class="exam-value application-period">
+                            ${exam.application_start} ～ ${exam.application_end}
+                        </span>
+                    </div>
+                    
+                    <div class="exam-info-item">
+                        <span class="exam-label">第1次試験:</span>
+                        <span class="exam-value exam-date">${exam.first_exam_date}</span>
+                    </div>
+                </div>
+                
+                <div class="exam-card-footer">
+                    <a href="${exam.official_url}" target="_blank" rel="noopener" class="exam-link-btn">
+                        <span>詳細・申込</span>
+                        <svg class="external-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15,3 21,3 21,9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+
+    // テーブルスタイルのレンダリング
+    renderTableStyle(examData, municipality) {
+        return `
+            <div class="exam-list-container">
+                <div class="exam-list-header">
+                    <h2 class="municipality-title">${municipality} 公務員試験一覧</h2>
+                    <p class="exam-count">募集中の試験: <strong>${examData.length}件</strong></p>
+                </div>
+                <div class="exam-table-container">
+                    <table class="exam-table">
+                        <thead>
+                            <tr>
+                                <th>試験名</th>
+                                <th>募集職種</th>
+                                <th>申込期間</th>
+                                <th>第1次試験</th>
+                                <th>詳細</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${examData.map(exam => `
+                                <tr class="exam-row ${this.getExamStatus(exam.application_end)}">
+                                    <td class="exam-title-cell">${exam.exam_title}</td>
+                                    <td class="job-categories-cell">${exam.job_categories}</td>
+                                    <td class="application-period-cell">${exam.application_start}<br>～ ${exam.application_end}</td>
+                                    <td class="exam-date-cell">${exam.first_exam_date}</td>
+                                    <td class="action-cell">
+                                        <a href="${exam.official_url}" target="_blank" rel="noopener" class="exam-link-btn-small">詳細</a>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // 試験の状態を判定
+    getExamStatus(applicationEnd) {
+        const today = new Date();
+        const endDate = new Date(applicationEnd);
+        const diffTime = endDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) return 'expired';
+        if (diffDays <= 7) return 'urgent';
+        if (diffDays <= 30) return 'soon';
+        return 'available';
+    }
+
+    // 残り日数を計算
+    getRemainingDays(applicationEnd) {
+        const today = new Date();
+        const endDate = new Date(applicationEnd);
+        const diffTime = endDate - today;
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    // ステータステキストを取得
+    getStatusText(status, remainingDays) {
+        switch (status) {
+            case 'expired': return '締切済';
+            case 'urgent': return `残り${remainingDays}日`;
+            case 'soon': return `残り${remainingDays}日`;
+            case 'available': return '募集中';
+            default: return '';
+        }
+    }
+
+    // ローディングHTML
+    getLoadingHTML() {
+        return `
+            <div class="exam-loading">
+                <div class="loading-spinner"></div>
+                <p>試験情報を読み込み中...</p>
+            </div>
+        `;
+    }
+
+    // 結果なしHTML
+    getNoResultsHTML() {
+        return `
+            <div class="exam-no-results">
+                <p>現在、募集中の試験はありません。</p>
+            </div>
+        `;
+    }
+
+    // エラーHTML
+    getErrorHTML() {
+        return `
+            <div class="exam-error">
+                <p>試験情報の取得に失敗しました。しばらく時間をおいて再度お試しください。</p>
+            </div>
+        `;
+    }
+
+    // イベントリスナー追加
+    addEventListeners(container) {
+        // フィルタ機能やソート機能のイベントリスナーをここに追加
+        const filterButtons = container.querySelectorAll('.exam-filter-btn');
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.handleFilter(e, container);
+            });
+        });
+    }
+
+    // 模擬データ（実際の実装では削除）
+    getMockData(municipality) {
+        const mockData = [
+            {
+                exam_title: "大学卒業程度",
+                job_categories: "行政、技術、専門職",
+                application_start: "2025年4月1日",
+                application_end: "2025年5月15日",
+                first_exam_date: "2025年6月15日",
+                official_url: "https://example.com"
+            },
+            {
+                exam_title: "高校卒業程度",
+                job_categories: "事務、技術",
+                application_start: "2025年7月1日",
+                application_end: "2025年8月15日",
+                first_exam_date: "2025年9月28日",
+                official_url: "https://example.com"
+            }
+        ];
+        return mockData;
+    }
+}
+
+// システム初期化
+const examDisplaySystem = new ExamDisplaySystem();
+
+// グローバル関数として公開（必要に応じて）
+window.ExamDisplaySystem = ExamDisplaySystem;
